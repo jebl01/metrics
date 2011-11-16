@@ -1,6 +1,10 @@
 package com.yammer.metrics.core.tests;
 
+import java.io.IOException;
+
 import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.reporting.AbstractPollingReporter;
+
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
@@ -12,6 +16,9 @@ public class GaugeMetricTest {
         public String value() {
             return "woo";
         }
+
+        @Override
+        public <T> void reportTo(AbstractPollingReporter<T> reporter, T context) throws IOException {}
     };
 
     @Test

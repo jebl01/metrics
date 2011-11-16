@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * A simple reporters which prints out application metrics to a
  * {@link PrintStream} periodically.
  */
-public class ConsoleReporter extends AbstractPollingReporter {
+public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
     private final PrintStream out;
     private final MetricPredicate predicate;
     private final Clock clock;
@@ -92,28 +92,14 @@ public class ConsoleReporter extends AbstractPollingReporter {
                 out.print('=');
             }
             out.println();
-
             for (Entry<String, Map<String, Metric>> entry : Utils.sortAndFilterMetrics(metricsRegistry.allMetrics(), predicate).entrySet()) {
                 out.print(entry.getKey());
                 out.println(':');
-
                 for (Entry<String, Metric> subEntry : entry.getValue().entrySet()) {
                     out.print("  ");
                     out.print(subEntry.getKey());
                     out.println(':');
-
-                    final Metric metric = subEntry.getValue();
-                    if (metric instanceof GaugeMetric<?>) {
-                        printGauge((GaugeMetric<?>) metric);
-                    } else if (metric instanceof CounterMetric) {
-                        printCounter((CounterMetric) metric);
-                    } else if (metric instanceof HistogramMetric) {
-                        printHistogram((HistogramMetric) metric);
-                    } else if (metric instanceof MeterMetric) {
-                        printMetered((MeterMetric) metric);
-                    } else if (metric instanceof TimerMetric) {
-                        printTimer((TimerMetric) metric);
-                    }
+                    subEntry.getValue().reportTo(this, out);
                     out.println();
                 }
                 out.println();
@@ -124,56 +110,59 @@ public class ConsoleReporter extends AbstractPollingReporter {
             e.printStackTrace(out);
         }
     }
-
-    private void printGauge(GaugeMetric<?> gauge) {
-        out.print("    value = ");
-        out.println(gauge.value());
+    
+    @Override
+    public void report(final GaugeMetric<?> gauge, final PrintStream stream) {
+        stream.print("    value = ");
+        stream.println(gauge.value());
     }
 
-    private void printCounter(CounterMetric counter) {
-        out.print("    count = ");
-        out.println(counter.count());
+    @Override
+    public void report(final CounterMetric counter, final PrintStream stream) {
+        stream.print("    count = ");
+        stream.println(counter.count());
     }
 
-    private void printMetered(Metered meter) {
+    @Override
+    public void report(final Metered meter, final PrintStream stream) {
         final String unit = abbrev(meter.rateUnit());
-        out.printf("             count = %d\n", meter.count());
-        out.printf("         mean rate = %2.2f %s/%s\n", meter.meanRate(), meter.eventType(), unit);
-        out.printf("     1-minute rate = %2.2f %s/%s\n", meter.oneMinuteRate(), meter.eventType(), unit);
-        out.printf("     5-minute rate = %2.2f %s/%s\n", meter.fiveMinuteRate(), meter.eventType(), unit);
-        out.printf("    15-minute rate = %2.2f %s/%s\n", meter.fifteenMinuteRate(), meter.eventType(), unit);
+        stream.printf("             count = %d\n", meter.count());
+        stream.printf("         mean rate = %2.2f %s/%s\n", meter.meanRate(), meter.eventType(), unit);
+        stream.printf("     1-minute rate = %2.2f %s/%s\n", meter.oneMinuteRate(), meter.eventType(), unit);
+        stream.printf("     5-minute rate = %2.2f %s/%s\n", meter.fiveMinuteRate(), meter.eventType(), unit);
+        stream.printf("    15-minute rate = %2.2f %s/%s\n", meter.fifteenMinuteRate(), meter.eventType(), unit);
     }
 
-    private void printHistogram(HistogramMetric histogram) {
+    @Override
+    public void report(final HistogramMetric histogram, final PrintStream stream) {
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
-        out.printf("               min = %2.2f\n", histogram.min());
-        out.printf("               max = %2.2f\n", histogram.max());
-        out.printf("              mean = %2.2f\n", histogram.mean());
-        out.printf("            stddev = %2.2f\n", histogram.stdDev());
-        out.printf("            median = %2.2f\n", percentiles[0]);
-        out.printf("              75%% <= %2.2f\n", percentiles[1]);
-        out.printf("              95%% <= %2.2f\n", percentiles[2]);
-        out.printf("              98%% <= %2.2f\n", percentiles[3]);
-        out.printf("              99%% <= %2.2f\n", percentiles[4]);
-        out.printf("            99.9%% <= %2.2f\n", percentiles[5]);
+        stream.printf("               min = %2.2f\n", histogram.min());
+        stream.printf("               max = %2.2f\n", histogram.max());
+        stream.printf("              mean = %2.2f\n", histogram.mean());
+        stream.printf("            stddev = %2.2f\n", histogram.stdDev());
+        stream.printf("            median = %2.2f\n", percentiles[0]);
+        stream.printf("              75%% <= %2.2f\n", percentiles[1]);
+        stream.printf("              95%% <= %2.2f\n", percentiles[2]);
+        stream.printf("              98%% <= %2.2f\n", percentiles[3]);
+        stream.printf("              99%% <= %2.2f\n", percentiles[4]);
+        stream.printf("            99.9%% <= %2.2f\n", percentiles[5]);
     }
 
-    private void printTimer(TimerMetric timer) {
-        printMetered(timer);
-
+    @Override
+    public void report(final TimerMetric timer, final PrintStream stream) {
+        report((Metered)timer, stream);
         final String durationUnit = abbrev(timer.durationUnit());
-
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
-        out.printf("               min = %2.2f%s\n", timer.min(), durationUnit);
-        out.printf("               max = %2.2f%s\n", timer.max(), durationUnit);
-        out.printf("              mean = %2.2f%s\n", timer.mean(), durationUnit);
-        out.printf("            stddev = %2.2f%s\n", timer.stdDev(), durationUnit);
-        out.printf("            median = %2.2f%s\n", percentiles[0], durationUnit);
-        out.printf("              75%% <= %2.2f%s\n", percentiles[1], durationUnit);
-        out.printf("              95%% <= %2.2f%s\n", percentiles[2], durationUnit);
-        out.printf("              98%% <= %2.2f%s\n", percentiles[3], durationUnit);
-        out.printf("              99%% <= %2.2f%s\n", percentiles[4], durationUnit);
-        out.printf("            99.9%% <= %2.2f%s\n", percentiles[5], durationUnit);
+        stream.printf("               min = %2.2f%s\n", timer.min(), durationUnit);
+        stream.printf("               max = %2.2f%s\n", timer.max(), durationUnit);
+        stream.printf("              mean = %2.2f%s\n", timer.mean(), durationUnit);
+        stream.printf("            stddev = %2.2f%s\n", timer.stdDev(), durationUnit);
+        stream.printf("            median = %2.2f%s\n", percentiles[0], durationUnit);
+        stream.printf("              75%% <= %2.2f%s\n", percentiles[1], durationUnit);
+        stream.printf("              95%% <= %2.2f%s\n", percentiles[2], durationUnit);
+        stream.printf("              98%% <= %2.2f%s\n", percentiles[3], durationUnit);
+        stream.printf("              99%% <= %2.2f%s\n", percentiles[4], durationUnit);
+        stream.printf("            99.9%% <= %2.2f%s\n", percentiles[5], durationUnit);
     }
 
     private String abbrev(TimeUnit unit) {

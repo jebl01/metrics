@@ -42,7 +42,7 @@ import com.yammer.metrics.util.Utils;
  * A simple reporter which sends out application metrics to a
  * <a href="http://graphite.wikidot.com/faq">Graphite</a> server periodically.
  */
-public class GraphiteReporter extends AbstractPollingReporter {
+public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.Context> {
     private static final Logger LOG = LoggerFactory.getLogger(GraphiteReporter.class);
     private final String prefix;
     private final MetricPredicate predicate;
@@ -218,24 +218,14 @@ public class GraphiteReporter extends AbstractPollingReporter {
         }
     }
 
-    private void printRegularMetrics(long epoch) {
+    private void printRegularMetrics(final long epoch) {
         for (Entry<String, Map<String, Metric>> entry : Utils.sortAndFilterMetrics(metricsRegistry.allMetrics(), this.predicate).entrySet()) {
             for (Entry<String, Metric> subEntry : entry.getValue().entrySet()) {
                 final String simpleName = sanitizeName(entry.getKey() + "." + subEntry.getKey());
                 final Metric metric = subEntry.getValue();
                 if (metric != null) {
                     try {
-                        if (metric instanceof GaugeMetric<?>) {
-                            printGauge((GaugeMetric<?>) metric, simpleName, epoch);
-                        } else if (metric instanceof CounterMetric) {
-                            printCounter((CounterMetric) metric, simpleName, epoch);
-                        } else if (metric instanceof HistogramMetric) {
-                            printHistogram((HistogramMetric) metric, simpleName, epoch);
-                        } else if (metric instanceof MeterMetric) {
-                            printMetered((MeterMetric) metric, simpleName, epoch);
-                        } else if (metric instanceof TimerMetric) {
-                            printTimer((TimerMetric) metric, simpleName, epoch);
-                        }
+                        metric.reportTo(this, new Context(simpleName, epoch));
                     } catch (Exception ignored) {
                         LOG.error("Error printing regular metrics:", ignored);
                     }
@@ -243,6 +233,8 @@ public class GraphiteReporter extends AbstractPollingReporter {
             }
         }
     }
+    
+    
 
     private void sendToGraphite(String data) {
         try {
@@ -256,60 +248,71 @@ public class GraphiteReporter extends AbstractPollingReporter {
       return name.replace(' ', '-');
     }
 
-    private void printGauge(GaugeMetric<?> gauge, String name, long epoch) {
-        sendToGraphite(String.format(locale, "%s%s.%s %s %d\n", prefix, sanitizeName(name), "value", gauge.value(), epoch));
+    public static final class Context {
+        public final String name;
+        public final long epoch;
+        public Context(final String name, final long epoch) {
+            this.name = name;
+            this.epoch = epoch;
+        }
     }
 
-    private void printCounter(CounterMetric counter, String name, long epoch) {
-        sendToGraphite(String.format(locale, "%s%s.%s %d %d\n", prefix, sanitizeName(name), "count", counter.count(), epoch));
+    @Override
+    public void report(final GaugeMetric gauge, final Context context) throws IOException {
+        sendToGraphite(String.format(locale, "%s%s.%s %s %d\n", prefix, sanitizeName(context.name), "value", gauge.value(), context.epoch));
     }
 
-    private void printMetered(Metered meter, String name, long epoch) {
-        final String sanitizedName = sanitizeName(name);
+    @Override
+    public void report(final CounterMetric counter, final Context context) throws IOException {
+        sendToGraphite(String.format(locale, "%s%s.%s %d %d\n", prefix, sanitizeName(context.name), "count", counter.count(), context.epoch));
+    }
+
+    @Override
+    public void report(final Metered meter, final Context context) throws IOException {
+        final String sanitizedName = sanitizeName(context.name);
         final StringBuilder lines = new StringBuilder();
-        lines.append(String.format(locale, "%s%s.%s %d %d\n",    prefix, sanitizedName, "count",        meter.count(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "meanRate",     meter.meanRate(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "1MinuteRate",  meter.oneMinuteRate(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "5MinuteRate",  meter.fiveMinuteRate(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "15MinuteRate", meter.fifteenMinuteRate(), epoch));
+        lines.append(String.format(locale, "%s%s.%s %d %d\n",    prefix, sanitizedName, "count",        meter.count(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "meanRate",     meter.meanRate(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "1MinuteRate",  meter.oneMinuteRate(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "5MinuteRate",  meter.fiveMinuteRate(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "15MinuteRate", meter.fifteenMinuteRate(), context.epoch));
         sendToGraphite(lines.toString());
     }
 
-    private void printHistogram(HistogramMetric histogram, String name, long epoch) {
-        final String sanitizedName = sanitizeName(name);
+    @Override
+    public void report(final HistogramMetric histogram, final Context context) throws IOException {
+        final String sanitizedName = sanitizeName(context.name);
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         final StringBuilder lines = new StringBuilder();
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "min",           histogram.min(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "max",           histogram.max(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "mean",          histogram.mean(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "stddev",        histogram.stdDev(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "median",        percentiles[0], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "75percentile",  percentiles[1], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "95percentile",  percentiles[2], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "98percentile",  percentiles[3], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "99percentile",  percentiles[4], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "999percentile", percentiles[5], epoch));
-
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "min",           histogram.min(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "max",           histogram.max(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "mean",          histogram.mean(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "stddev",        histogram.stdDev(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "median",        percentiles[0], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "75percentile",  percentiles[1], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "95percentile",  percentiles[2], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "98percentile",  percentiles[3], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "99percentile",  percentiles[4], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "999percentile", percentiles[5], context.epoch));
         sendToGraphite(lines.toString());
     }
 
-    private void printTimer(TimerMetric timer, String name, long epoch) {
-        printMetered(timer, name, epoch);
-
-        final String sanitizedName = sanitizeName(name);
+    @Override
+    public void report(final TimerMetric timer, final Context context) throws IOException {
+        report((Metered)timer, context);
+        final String sanitizedName = sanitizeName(context.name);
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
-
         final StringBuilder lines = new StringBuilder();
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "min",           timer.min(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "max",           timer.max(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "mean",          timer.mean(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "stddev",        timer.stdDev(), epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "median",        percentiles[0], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "75percentile",  percentiles[1], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "95percentile",  percentiles[2], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "98percentile",  percentiles[3], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "99percentile",  percentiles[4], epoch));
-        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "999percentile", percentiles[5], epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "min",           timer.min(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "max",           timer.max(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "mean",          timer.mean(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "stddev",        timer.stdDev(), context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "median",        percentiles[0], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "75percentile",  percentiles[1], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "95percentile",  percentiles[2], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "98percentile",  percentiles[3], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "99percentile",  percentiles[4], context.epoch));
+        lines.append(String.format(locale, "%s%s.%s %2.2f %d\n", prefix, sanitizedName, "999percentile", percentiles[5], context.epoch));
         sendToGraphite(lines.toString());
     }
 

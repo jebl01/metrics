@@ -1,6 +1,6 @@
 package com.yammer.metrics
 
-import core.{MetricsRegistry, GaugeMetric}
+import core.{MetricsRegistry, AbstractGaugeMetric}
 import java.util.concurrent.TimeUnit
 
 /**
@@ -16,7 +16,7 @@ class MetricsGroup(val klass: Class[_], val metricsRegistry: MetricsRegistry = M
    * @param registry the registry for the gauge
    */
   def gauge[A](name: String, scope: String = null, registry: MetricsRegistry = metricsRegistry)(f: => A) = {
-    registry.newGauge(klass, name, scope, new GaugeMetric[A] {
+    registry.newGauge(klass, name, scope, new AbstractGaugeMetric[A] {
       def value = f
     })
   }

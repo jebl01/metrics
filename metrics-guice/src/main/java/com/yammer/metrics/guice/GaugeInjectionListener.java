@@ -4,7 +4,9 @@ import com.google.inject.TypeLiteral;
 import com.google.inject.spi.InjectionListener;
 import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.reporting.AbstractPollingReporter;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 
 /**
@@ -35,6 +37,11 @@ public class GaugeInjectionListener<I> implements InjectionListener<I> {
                 } catch (Exception e) {
                     return new RuntimeException(e);
                 }
+            }
+
+            @Override
+            public <T> void reportTo(AbstractPollingReporter<T> reporter, T context) throws IOException {
+                reporter.report(this, context);
             }
         });
     }

@@ -1,11 +1,17 @@
 package com.yammer.metrics.reporting;
 
-import com.yammer.metrics.core.MetricsRegistry;
-
+import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public abstract class AbstractPollingReporter extends AbstractReporter implements Runnable {
+import com.yammer.metrics.core.CounterMetric;
+import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.core.HistogramMetric;
+import com.yammer.metrics.core.Metered;
+import com.yammer.metrics.core.MetricsRegistry;
+import com.yammer.metrics.core.TimerMetric;
+
+public abstract class AbstractPollingReporter<T> extends AbstractReporter implements Runnable {
     private final ScheduledExecutorService executor;
 
     protected AbstractPollingReporter(MetricsRegistry registry, String name) {
@@ -25,4 +31,14 @@ public abstract class AbstractPollingReporter extends AbstractReporter implement
     public void shutdown() {
         executor.shutdown();
     }
+
+    public abstract void report(Metered meter, T context) throws IOException;
+
+    public abstract void report(CounterMetric counter, T context) throws IOException;
+
+    public abstract void report(HistogramMetric histogram, T context) throws IOException;
+
+    public abstract void report(TimerMetric timer, T context) throws IOException;
+
+    public abstract void report(GaugeMetric<?> gauge, T context) throws IOException;
 }

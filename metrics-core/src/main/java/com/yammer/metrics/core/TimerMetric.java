@@ -1,8 +1,5 @@
 package com.yammer.metrics.core;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.HistogramMetric.SampleType;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,6 +7,10 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.HistogramMetric.SampleType;
+import com.yammer.metrics.reporting.AbstractPollingReporter;
 
 /**
  * A timer metric which aggregates timing durations and provides duration
@@ -246,5 +247,10 @@ public class TimerMetric implements Metered, Stoppable {
     @Override
     public void stop() {
         meter.stop();
+    }
+
+    @Override
+    public <T >void reportTo(final AbstractPollingReporter<T> reporter, final T context) throws IOException {
+        reporter.report(this, context);
     }
 }

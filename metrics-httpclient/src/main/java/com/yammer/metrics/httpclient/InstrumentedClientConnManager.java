@@ -2,11 +2,14 @@ package com.yammer.metrics.httpclient;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.reporting.AbstractPollingReporter;
+
 import org.apache.http.conn.scheme.SchemeRegistry;
 import org.apache.http.impl.conn.SchemeRegistryFactory;
 import org.apache.http.impl.conn.tsccm.ConnPoolByRoute;
 import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,6 +37,11 @@ public class InstrumentedClientConnManager extends ThreadSafeClientConnManager {
                                  // this acquires a lock on the connection pool; remove if contention sucks
                                  return getConnectionsInPool();
                              }
+
+                            @Override
+                            public <T> void reportTo(AbstractPollingReporter<T> reporter, T context) throws IOException {
+                                reporter.report(this, context);
+                            }
                          });
     }
 

@@ -1,9 +1,18 @@
 package com.yammer.metrics.ehcache;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.GaugeMetric;
-import com.yammer.metrics.core.TimerMetric;
-import net.sf.ehcache.*;
+import java.beans.PropertyChangeListener;
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import net.sf.ehcache.CacheException;
+import net.sf.ehcache.CacheManager;
+import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Element;
+import net.sf.ehcache.Statistics;
+import net.sf.ehcache.Status;
 import net.sf.ehcache.bootstrap.BootstrapCacheLoader;
 import net.sf.ehcache.config.CacheConfiguration;
 import net.sf.ehcache.event.RegisteredEventListeners;
@@ -20,12 +29,9 @@ import net.sf.ehcache.transaction.manager.TransactionManagerLookup;
 import net.sf.ehcache.writer.CacheWriter;
 import net.sf.ehcache.writer.CacheWriterManager;
 
-import java.beans.PropertyChangeListener;
-import java.io.Serializable;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.AbstractGaugeMetric;
+import com.yammer.metrics.core.TimerMetric;
 
 /**
  * An instrumented {@link Ehcache} instance.
@@ -132,126 +138,126 @@ public class InstrumentedEhcache implements Ehcache {
         cache.setSampledStatisticsEnabled(true);
         cache.setStatisticsAccuracy(Statistics.STATISTICS_ACCURACY_NONE);
 
-        Metrics.newGauge(cache.getClass(), "hits", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "hits", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getCacheHits();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "in-memory-hits", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "in-memory-hits", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getInMemoryHits();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "off-heap-hits", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "off-heap-hits", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getOffHeapHits();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "on-disk-hits", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "on-disk-hits", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getOnDiskHits();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "misses", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "misses", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getCacheMisses();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "in-memory-misses", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "in-memory-misses", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getInMemoryMisses();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "off-heap-misses", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "off-heap-misses", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getOffHeapMisses();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "on-disk-misses", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "on-disk-misses", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getOnDiskMisses();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "objects", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "objects", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getObjectCount();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "in-memory-objects", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "in-memory-objects", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getMemoryStoreObjectCount();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "off-heap-objects", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "off-heap-objects", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getOffHeapStoreObjectCount();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "on-disk-objects", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "on-disk-objects", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getDiskStoreObjectCount();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "mean-get-time", cache.getName(), new GaugeMetric<Float>() {
+        Metrics.newGauge(cache.getClass(), "mean-get-time", cache.getName(), new AbstractGaugeMetric<Float>() {
             @Override
             public Float value() {
                 return cache.getStatistics().getAverageGetTime();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "mean-search-time", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "mean-search-time", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getAverageSearchTime();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "eviction-count", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "eviction-count", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getEvictionCount();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "searches-per-second", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "searches-per-second", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getSearchesPerSecond();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "writer-queue-size", cache.getName(), new GaugeMetric<Long>() {
+        Metrics.newGauge(cache.getClass(), "writer-queue-size", cache.getName(), new AbstractGaugeMetric<Long>() {
             @Override
             public Long value() {
                 return cache.getStatistics().getWriterQueueSize();
             }
         });
 
-        Metrics.newGauge(cache.getClass(), "accuracy", cache.getName(), new GaugeMetric<String>() {
+        Metrics.newGauge(cache.getClass(), "accuracy", cache.getName(), new AbstractGaugeMetric<String>() {
             @Override
             public String value() {
                 return cache.getStatistics().getStatisticsAccuracyDescription();
@@ -260,7 +266,7 @@ public class InstrumentedEhcache implements Ehcache {
 
         return new InstrumentedEhcache(cache);
     }
-
+    
     private final TimerMetric getTimer, putTimer;
     private final Ehcache cache;
 

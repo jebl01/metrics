@@ -1,10 +1,21 @@
 package com.yammer.metrics.jetty;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.CounterMetric;
-import com.yammer.metrics.core.GaugeMetric;
-import com.yammer.metrics.core.MeterMetric;
-import com.yammer.metrics.core.TimerMetric;
+import static org.eclipse.jetty.http.HttpMethods.CONNECT;
+import static org.eclipse.jetty.http.HttpMethods.DELETE;
+import static org.eclipse.jetty.http.HttpMethods.GET;
+import static org.eclipse.jetty.http.HttpMethods.HEAD;
+import static org.eclipse.jetty.http.HttpMethods.OPTIONS;
+import static org.eclipse.jetty.http.HttpMethods.POST;
+import static org.eclipse.jetty.http.HttpMethods.PUT;
+import static org.eclipse.jetty.http.HttpMethods.TRACE;
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.eclipse.jetty.continuation.Continuation;
 import org.eclipse.jetty.continuation.ContinuationListener;
 import org.eclipse.jetty.server.AsyncContinuation;
@@ -12,13 +23,11 @@ import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.HandlerWrapper;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-
-import static org.eclipse.jetty.http.HttpMethods.*;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.AbstractGaugeMetric;
+import com.yammer.metrics.core.CounterMetric;
+import com.yammer.metrics.core.MeterMetric;
+import com.yammer.metrics.core.TimerMetric;
 
 /**
  * A Jetty {@link Handler} which records various metrics about an underlying
@@ -70,7 +79,7 @@ public class InstrumentedHandler extends HandlerWrapper {
                 Metrics.newMeter(underlying.getClass(), "5xx-responses", "responses", TimeUnit.SECONDS)  // 5xx
         };
 
-        Metrics.newGauge(underlying.getClass(), "percent-4xx-1m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-4xx-1m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {
@@ -80,7 +89,7 @@ public class InstrumentedHandler extends HandlerWrapper {
             }
         });
 
-        Metrics.newGauge(underlying.getClass(), "percent-4xx-5m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-4xx-5m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {
@@ -90,7 +99,7 @@ public class InstrumentedHandler extends HandlerWrapper {
             }
         });
 
-        Metrics.newGauge(underlying.getClass(), "percent-4xx-15m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-4xx-15m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {
@@ -100,7 +109,7 @@ public class InstrumentedHandler extends HandlerWrapper {
             }
         });
 
-        Metrics.newGauge(underlying.getClass(), "percent-5xx-1m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-5xx-1m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {
@@ -110,7 +119,7 @@ public class InstrumentedHandler extends HandlerWrapper {
             }
         });
 
-        Metrics.newGauge(underlying.getClass(), "percent-5xx-5m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-5xx-5m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {
@@ -120,7 +129,7 @@ public class InstrumentedHandler extends HandlerWrapper {
             }
         });
 
-        Metrics.newGauge(underlying.getClass(), "percent-5xx-15m", new GaugeMetric<Double>() {
+        Metrics.newGauge(underlying.getClass(), "percent-5xx-15m", new AbstractGaugeMetric<Double>() {
             @Override
             public Double value() {
                 if (requests.count() > 0) {

@@ -36,7 +36,7 @@ import static com.yammer.metrics.core.VirtualMachineMetrics.uptime;
  * which is based on <a ahref="http://search-hadoop.com/c/Hadoop:/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/metrics/ganglia/GangliaContext31.java">GangliaContext31</a>
  * from Hadoop.
  */
-public class GangliaReporter extends AbstractPollingReporter {
+public class GangliaReporter extends AbstractPollingReporter<String> {
     private static final Logger LOG = LoggerFactory.getLogger(GangliaReporter.class);
     private static final int GANGLIA_TMAX = 60;
     private static final int GANGLIA_DMAX = 0;
@@ -236,26 +236,15 @@ public class GangliaReporter extends AbstractPollingReporter {
                 final Metric metric = subEntry.getValue();
                 if (metric != null) {
                     try {
-                        if (metric instanceof GaugeMetric<?>) {
-                            printGauge((GaugeMetric<?>) metric, simpleName);
-                        } else if (metric instanceof CounterMetric) {
-                            printCounter((CounterMetric) metric, simpleName);
-                        } else if (metric instanceof HistogramMetric) {
-                            printHistogram((HistogramMetric) metric, simpleName);
-                        } else if (metric instanceof MeterMetric) {
-                            printMetered((MeterMetric) metric, simpleName);
-                        } else if (metric instanceof TimerMetric) {
-                            printTimer((TimerMetric) metric, simpleName);
-                        }
+                        metric.reportTo(this, simpleName);
                     } catch (Exception ignored) {
                         LOG.error("Error printing regular metrics:", ignored);
                     }
                 }
             }
         }
-
     }
-
+    
     private void sendToGanglia(String metricName, String metricType, String metricValue, String groupName, String units) {
         try {
             sendMetricData(metricType, metricName, metricValue, groupPrefix + groupName, units);
@@ -301,15 +290,18 @@ public class GangliaReporter extends AbstractPollingReporter {
 
 
 
-    private void printGauge(GaugeMetric<?> gauge, String name) {
+    @Override
+    public void report(GaugeMetric<?> gauge, String name) throws IOException {
         sendToGanglia(sanitizeName(name), GANGLIA_INT_TYPE, String.format(locale, "%s", gauge.value()), "gauge");
     }
 
-    private void printCounter(CounterMetric counter, String name) {
+    @Override
+    public void report(CounterMetric counter, String name) throws IOException {
         sendToGanglia(sanitizeName(name), GANGLIA_INT_TYPE, String.format(locale, "%d", counter.count()), "counter");
     }
 
-    private void printMetered(Metered meter, String name) {
+    @Override
+    public void report(Metered meter, String name) throws IOException {
         final String sanitizedName = sanitizeName(name);
         final String units = meter.rateUnit().name();
         printLongField(sanitizedName + ".count", meter.count(), "metered", units);
@@ -319,7 +311,8 @@ public class GangliaReporter extends AbstractPollingReporter {
         printDoubleField(sanitizedName + ".15MinuteRate", meter.fifteenMinuteRate(), "metered", units);
     }
 
-    private void printHistogram(HistogramMetric histogram, String name) {
+    @Override
+    public void report(HistogramMetric histogram, String name) throws IOException {
         final String sanitizedName = sanitizeName(name);
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
 
@@ -336,8 +329,9 @@ public class GangliaReporter extends AbstractPollingReporter {
         printDoubleField(sanitizedName + ".999percentile", percentiles[5], "histo");
     }
 
-    private void printTimer(TimerMetric timer, String name) {
-        printMetered(timer, name);
+    @Override
+    public void report(TimerMetric timer, String name) throws IOException {
+        report((Metered)timer, name);
         final String sanitizedName = sanitizeName(name);
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         final String durationUnit = timer.durationUnit().name();
