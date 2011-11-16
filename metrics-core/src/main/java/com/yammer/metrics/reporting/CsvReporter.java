@@ -17,11 +17,12 @@ import com.yammer.metrics.core.HistogramMetric;
 import com.yammer.metrics.core.Metered;
 import com.yammer.metrics.core.Metric;
 import com.yammer.metrics.core.MetricName;
+import com.yammer.metrics.core.MetricsProcessor;
 import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.core.TimerMetric;
 import com.yammer.metrics.util.MetricPredicate;
 
-public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
+public class CsvReporter extends AbstractPollingReporter implements MetricsProcessor<CsvReporter.Context> {
     private final MetricPredicate predicate;
     private final File outputDir;
     private final Map<MetricName, PrintStream> streamMap;
@@ -87,7 +88,7 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
                 if (predicate.matches(metricName, metric)) {
                     final Context context = new Context() {
                         @Override
-                        public PrintStream getStream(final String header) throws IOException {
+                        public PrintStream getStream(String header) throws IOException {
                             final PrintStream stream = getPrintStream(metricName, header);
                             stream.print(time);
                             stream.print(',');
@@ -95,7 +96,7 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
                         }
                         
                     };
-                    metric.reportTo(this, context);
+                    metric.processWith(this, context);
                 }
             }
         } catch (Exception e) {
@@ -104,11 +105,11 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
     }
     
     public static interface Context {
-        public PrintStream getStream(final String header) throws IOException;
+        public PrintStream getStream(String header) throws IOException;
     }
     
     @Override
-    public void report(final Metered meter, final Context context)  throws IOException {
+    public void processMeter(Metered meter, Context context)  throws IOException {
         final PrintStream stream = context.getStream("# time,count,1 min rate,mean rate,5 min rate,15 min rate");
         stream.append(new StringBuilder()
             .append(meter.count()).append(',')
@@ -121,14 +122,14 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
     }
 
     @Override
-    public void report(final CounterMetric counter, final Context context) throws IOException {
+    public void processCounter(CounterMetric counter, Context context) throws IOException {
         final PrintStream stream = context.getStream("# time,count");
         stream.println(counter.count());
         stream.flush();
     }
 
     @Override
-    public void report(final HistogramMetric histogram, final Context context) throws IOException {
+    public void processHistogram(HistogramMetric histogram, Context context) throws IOException {
         final PrintStream stream = context.getStream("# time,min,max,mean,median,stddev,90%,95%,99%");
         final double[] percentiles = histogram.percentiles(0.5, 0.90, 0.95, 0.99);
         stream.append(new StringBuilder()
@@ -146,7 +147,7 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
     }
 
     @Override
-    public void report(final TimerMetric timer, final Context context) throws IOException {
+    public void processTimer(TimerMetric timer, Context context) throws IOException {
         final PrintStream stream = context.getStream("# time,min,max,mean,median,stddev,90%,95%,99%");
         final double[] percentiles = timer.percentiles(0.5, 0.90, 0.95, 0.99);
         stream.append(new StringBuilder()
@@ -163,7 +164,7 @@ public class CsvReporter extends AbstractPollingReporter<CsvReporter.Context> {
     }
 
     @Override
-    public void report(final GaugeMetric<?> gauge, final Context context) throws IOException {
+    public void processGauge(GaugeMetric<?> gauge, Context context) throws IOException {
         final PrintStream stream = context.getStream("# time,value");
         stream.println(gauge.value());
         stream.flush();

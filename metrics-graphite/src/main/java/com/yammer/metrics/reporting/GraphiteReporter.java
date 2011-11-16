@@ -31,6 +31,12 @@ import com.yammer.metrics.core.HistogramMetric;
 import com.yammer.metrics.core.MeterMetric;
 import com.yammer.metrics.core.Metered;
 import com.yammer.metrics.core.Metric;
+import com.yammer.metrics.core.CounterMetric;
+import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.core.HistogramMetric;
+import com.yammer.metrics.core.Metered;
+import com.yammer.metrics.core.Metric;
+import com.yammer.metrics.core.MetricsProcessor;
 import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.core.TimerMetric;
 import com.yammer.metrics.core.VirtualMachineMetrics.GarbageCollector;
@@ -42,7 +48,7 @@ import com.yammer.metrics.util.Utils;
  * A simple reporter which sends out application metrics to a
  * <a href="http://graphite.wikidot.com/faq">Graphite</a> server periodically.
  */
-public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.Context> {
+public class GraphiteReporter extends AbstractPollingReporter implements MetricsProcessor<GraphiteReporter.Context> {
     private static final Logger LOG = LoggerFactory.getLogger(GraphiteReporter.class);
     private final String prefix;
     private final MetricPredicate predicate;
@@ -225,7 +231,7 @@ public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.C
                 final Metric metric = subEntry.getValue();
                 if (metric != null) {
                     try {
-                        metric.reportTo(this, new Context(simpleName, epoch));
+                        metric.processWith(this, new Context(simpleName, epoch));
                     } catch (Exception ignored) {
                         LOG.error("Error printing regular metrics:", ignored);
                     }
@@ -233,8 +239,6 @@ public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.C
             }
         }
     }
-    
-    
 
     private void sendToGraphite(String data) {
         try {
@@ -258,17 +262,17 @@ public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.C
     }
 
     @Override
-    public void report(final GaugeMetric gauge, final Context context) throws IOException {
+    public void processGauge(GaugeMetric<?> gauge, Context context) throws IOException {
         sendToGraphite(String.format(locale, "%s%s.%s %s %d\n", prefix, sanitizeName(context.name), "value", gauge.value(), context.epoch));
     }
 
     @Override
-    public void report(final CounterMetric counter, final Context context) throws IOException {
+    public void processCounter(CounterMetric counter, Context context) throws IOException {
         sendToGraphite(String.format(locale, "%s%s.%s %d %d\n", prefix, sanitizeName(context.name), "count", counter.count(), context.epoch));
     }
 
     @Override
-    public void report(final Metered meter, final Context context) throws IOException {
+    public void processMeter(Metered meter, Context context) throws IOException {
         final String sanitizedName = sanitizeName(context.name);
         final StringBuilder lines = new StringBuilder();
         lines.append(String.format(locale, "%s%s.%s %d %d\n",    prefix, sanitizedName, "count",        meter.count(), context.epoch));
@@ -280,7 +284,7 @@ public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.C
     }
 
     @Override
-    public void report(final HistogramMetric histogram, final Context context) throws IOException {
+    public void processHistogram(HistogramMetric histogram, Context context) throws IOException {
         final String sanitizedName = sanitizeName(context.name);
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         final StringBuilder lines = new StringBuilder();
@@ -298,8 +302,8 @@ public class GraphiteReporter extends AbstractPollingReporter<GraphiteReporter.C
     }
 
     @Override
-    public void report(final TimerMetric timer, final Context context) throws IOException {
-        report((Metered)timer, context);
+    public void processTimer(TimerMetric timer, Context context) throws IOException {
+        processMeter(timer, context);
         final String sanitizedName = sanitizeName(context.name);
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         final StringBuilder lines = new StringBuilder();

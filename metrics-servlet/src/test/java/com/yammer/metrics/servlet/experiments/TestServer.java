@@ -7,8 +7,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.ThreadPool;
 
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.AbstractGaugeMetric;
 import com.yammer.metrics.core.CounterMetric;
+import com.yammer.metrics.core.GaugeMetric;
 import com.yammer.metrics.jetty.InstrumentedHandler;
 import com.yammer.metrics.jetty.InstrumentedQueuedThreadPool;
 import com.yammer.metrics.jetty.InstrumentedSelectChannelConnector;
@@ -18,7 +18,7 @@ public class TestServer {
     private static final CounterMetric COUNTER1 = Metrics.newCounter(TestServer.class, "wah", "doody");
     private static final CounterMetric COUNTER2 = Metrics.newCounter(TestServer.class, "woo");
     static {
-        Metrics.newGauge(TestServer.class, "boo", new AbstractGaugeMetric<Integer>() {
+        Metrics.newGauge(TestServer.class, "boo", new GaugeMetric<Integer>() {
             @Override
             public Integer value() {
                 throw new RuntimeException("asplode!");

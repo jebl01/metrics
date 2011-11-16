@@ -1,19 +1,5 @@
 package com.yammer.metrics.reporting;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.*;
-import com.yammer.metrics.core.VirtualMachineMetrics.*;
-import com.yammer.metrics.util.MetricPredicate;
-import com.yammer.metrics.util.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.*;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import static com.yammer.metrics.core.VirtualMachineMetrics.daemonThreadCount;
 import static com.yammer.metrics.core.VirtualMachineMetrics.fileDescriptorUsage;
 import static com.yammer.metrics.core.VirtualMachineMetrics.garbageCollectors;
@@ -23,6 +9,32 @@ import static com.yammer.metrics.core.VirtualMachineMetrics.nonHeapUsage;
 import static com.yammer.metrics.core.VirtualMachineMetrics.threadCount;
 import static com.yammer.metrics.core.VirtualMachineMetrics.threadStatePercentages;
 import static com.yammer.metrics.core.VirtualMachineMetrics.uptime;
+
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.CounterMetric;
+import com.yammer.metrics.core.GaugeMetric;
+import com.yammer.metrics.core.HistogramMetric;
+import com.yammer.metrics.core.Metered;
+import com.yammer.metrics.core.Metric;
+import com.yammer.metrics.core.MetricsProcessor;
+import com.yammer.metrics.core.MetricsRegistry;
+import com.yammer.metrics.core.TimerMetric;
+import com.yammer.metrics.core.VirtualMachineMetrics.GarbageCollector;
+import com.yammer.metrics.util.MetricPredicate;
+import com.yammer.metrics.util.Utils;
 
 /**
  * A simple reporter which sends out application metrics to a
@@ -36,7 +48,7 @@ import static com.yammer.metrics.core.VirtualMachineMetrics.uptime;
  * which is based on <a ahref="http://search-hadoop.com/c/Hadoop:/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/metrics/ganglia/GangliaContext31.java">GangliaContext31</a>
  * from Hadoop.
  */
-public class GangliaReporter extends AbstractPollingReporter<String> {
+public class GangliaReporter extends AbstractPollingReporter implements MetricsProcessor<String> {
     private static final Logger LOG = LoggerFactory.getLogger(GangliaReporter.class);
     private static final int GANGLIA_TMAX = 60;
     private static final int GANGLIA_DMAX = 0;
@@ -236,7 +248,7 @@ public class GangliaReporter extends AbstractPollingReporter<String> {
                 final Metric metric = subEntry.getValue();
                 if (metric != null) {
                     try {
-                        metric.reportTo(this, simpleName);
+                        metric.processWith(this, simpleName);
                     } catch (Exception ignored) {
                         LOG.error("Error printing regular metrics:", ignored);
                     }
@@ -291,17 +303,17 @@ public class GangliaReporter extends AbstractPollingReporter<String> {
 
 
     @Override
-    public void report(GaugeMetric<?> gauge, String name) throws IOException {
+    public void processGauge(GaugeMetric<?> gauge, String name) throws IOException {
         sendToGanglia(sanitizeName(name), GANGLIA_INT_TYPE, String.format(locale, "%s", gauge.value()), "gauge");
     }
 
     @Override
-    public void report(CounterMetric counter, String name) throws IOException {
+    public void processCounter(CounterMetric counter, String name) throws IOException {
         sendToGanglia(sanitizeName(name), GANGLIA_INT_TYPE, String.format(locale, "%d", counter.count()), "counter");
     }
 
     @Override
-    public void report(Metered meter, String name) throws IOException {
+    public void processMeter(Metered meter, String name) throws IOException {
         final String sanitizedName = sanitizeName(name);
         final String units = meter.rateUnit().name();
         printLongField(sanitizedName + ".count", meter.count(), "metered", units);
@@ -312,10 +324,9 @@ public class GangliaReporter extends AbstractPollingReporter<String> {
     }
 
     @Override
-    public void report(HistogramMetric histogram, String name) throws IOException {
+    public void processHistogram(HistogramMetric histogram, String name) throws IOException {
         final String sanitizedName = sanitizeName(name);
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
-
         // TODO:  what units make sense for histograms?  should we add event type to the Histogram metric?
         printDoubleField(sanitizedName + ".min", histogram.min(), "histo");
         printDoubleField(sanitizedName + ".max", histogram.max(), "histo");
@@ -330,8 +341,8 @@ public class GangliaReporter extends AbstractPollingReporter<String> {
     }
 
     @Override
-    public void report(TimerMetric timer, String name) throws IOException {
-        report((Metered)timer, name);
+    public void processTimer(TimerMetric timer, String name) throws IOException {
+        processMeter(timer, name);
         final String sanitizedName = sanitizeName(name);
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         final String durationUnit = timer.durationUnit().name();

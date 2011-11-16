@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * A simple reporters which prints out application metrics to a
  * {@link PrintStream} periodically.
  */
-public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
+public class ConsoleReporter extends AbstractPollingReporter implements MetricsProcessor<PrintStream> {
     private final PrintStream out;
     private final MetricPredicate predicate;
     private final Clock clock;
@@ -99,7 +99,7 @@ public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
                     out.print("  ");
                     out.print(subEntry.getKey());
                     out.println(':');
-                    subEntry.getValue().reportTo(this, out);
+                    subEntry.getValue().processWith(this, out);
                     out.println();
                 }
                 out.println();
@@ -112,19 +112,19 @@ public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
     }
     
     @Override
-    public void report(final GaugeMetric<?> gauge, final PrintStream stream) {
+    public void processGauge(GaugeMetric<?> gauge, PrintStream stream) {
         stream.print("    value = ");
         stream.println(gauge.value());
     }
 
     @Override
-    public void report(final CounterMetric counter, final PrintStream stream) {
+    public void processCounter(CounterMetric counter, PrintStream stream) {
         stream.print("    count = ");
         stream.println(counter.count());
     }
 
     @Override
-    public void report(final Metered meter, final PrintStream stream) {
+    public void processMeter(Metered meter, PrintStream stream) {
         final String unit = abbrev(meter.rateUnit());
         stream.printf("             count = %d\n", meter.count());
         stream.printf("         mean rate = %2.2f %s/%s\n", meter.meanRate(), meter.eventType(), unit);
@@ -134,7 +134,7 @@ public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
     }
 
     @Override
-    public void report(final HistogramMetric histogram, final PrintStream stream) {
+    public void processHistogram(HistogramMetric histogram, PrintStream stream) {
         final double[] percentiles = histogram.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         stream.printf("               min = %2.2f\n", histogram.min());
         stream.printf("               max = %2.2f\n", histogram.max());
@@ -149,8 +149,8 @@ public class ConsoleReporter extends AbstractPollingReporter<PrintStream> {
     }
 
     @Override
-    public void report(final TimerMetric timer, final PrintStream stream) {
-        report((Metered)timer, stream);
+    public void processTimer(TimerMetric timer, PrintStream stream) {
+        processMeter(timer, stream);
         final String durationUnit = abbrev(timer.durationUnit());
         final double[] percentiles = timer.percentiles(0.5, 0.75, 0.95, 0.98, 0.99, 0.999);
         stream.printf("               min = %2.2f%s\n", timer.min(), durationUnit);

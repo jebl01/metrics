@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.yammer.metrics.reporting.AbstractPollingReporter;
 import com.yammer.metrics.stats.ExponentiallyDecayingSample;
 import com.yammer.metrics.stats.Sample;
 import com.yammer.metrics.stats.UniformSample;
@@ -283,7 +282,7 @@ public class HistogramMetric implements Metric {
     }
 
     @Override
-    public <T> void reportTo(final AbstractPollingReporter<T> reporter, final T context) throws IOException {
-        reporter.report(this, context);
+    public <T> void processWith(final MetricsProcessor<T> processor, final T context) throws Exception {
+        processor.processHistogram(this, context);
     }
 }

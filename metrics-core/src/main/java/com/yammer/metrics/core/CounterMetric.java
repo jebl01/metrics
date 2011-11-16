@@ -1,9 +1,7 @@
 package com.yammer.metrics.core;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.yammer.metrics.reporting.AbstractPollingReporter;
 
 /**
  * An incrementing and decrementing counter metric.
@@ -60,7 +58,7 @@ public class CounterMetric implements Metric {
     }
 
     @Override
-    public <T> void reportTo(final AbstractPollingReporter<T> reporter, final T context) throws IOException {
-        reporter.report(this, context);
+    public <T> void processWith(MetricsProcessor<T> processor, T context) throws Exception {
+        processor.processCounter(this, context);
     }
 }

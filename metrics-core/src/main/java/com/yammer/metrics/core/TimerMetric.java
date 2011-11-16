@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.HistogramMetric.SampleType;
-import com.yammer.metrics.reporting.AbstractPollingReporter;
 
 /**
  * A timer metric which aggregates timing durations and provides duration
@@ -250,7 +249,7 @@ public class TimerMetric implements Metered, Stoppable {
     }
 
     @Override
-    public <T >void reportTo(final AbstractPollingReporter<T> reporter, final T context) throws IOException {
-        reporter.report(this, context);
+    public <T >void processWith(MetricsProcessor<T> processor, T context) throws Exception {
+        processor.processTimer(this, context);
     }
 }
